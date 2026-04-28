@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบประมวลผลแบบสอบถามความพึงพอใจ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --accent: #2ea043;
+    --accent2: #388bfd;
+    --accent3: #f0883e;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --danger: #f85149;
+    --warn: #d29922;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans Thai', 'Sarabun', sans-serif;
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  header h1 { font-size: 16px; font-weight: 600; color: var(--text); }
+  header p { font-size: 12px; color: var(--text-muted); }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  /* Upload Zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface);
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent2);
+    background: rgba(56,139,253,0.05);
+  }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon { font-size: 48px; margin-bottom: 16px; }
+  .upload-zone h2 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+  .upload-zone p { color: var(--text-muted); font-size: 13px; }
+  .btn-primary {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 10px 24px;
+    background: var(--accent2);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+
+  /* Loading */
+  #loading {
+    display: none;
+    text-align: center;
+    padding: 60px;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent2);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Results */
+  #results { display: none; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .stat-value { font-size: 28px; font-weight: 700; }
+  .stat-value.green { color: var(--accent); }
+  .stat-value.blue { color: var(--accent2); }
+  .stat-value.orange { color: var(--accent3); }
+
+  /* Filter bar */
+  .filter-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-bar label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px; }
+  .filter-bar select, .filter-bar input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    min-width: 160px;
+  }
+  .filter-group { display: flex; flex-direction: column; }
+  .btn-reset {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    align-self: flex-end;
+    transition: all 0.2s;
+  }
+  .btn-reset:hover { border-color: var(--text-muted); color: var(--text); }
+
+  /* Section cards */
+  .section-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 14px 20px;
+    background: var(--surface2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .section-header:hover { background: rgba(255,255,255,0.03); }
+  .section-title { font-weight: 600; font-size: 14px; }
+  .section-avg {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(46,160,67,0.15);
+    color: var(--accent);
+  }
+  .section-avg.warn { background: rgba(210,153,34,0.15); color: var(--warn); }
+  .section-avg.danger { background: rgba(248,81,73,0.15); color: var(--danger); }
+
+  .section-body { padding: 0 20px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s; }
+  .section-body.open { max-height: 2000px; padding: 16px 20px; }
+
+  .item-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .item-row:last-child { border-bottom: none; }
+  .item-label { font-size: 13px; color: var(--text-muted); }
+  .item-label strong { color: var(--text); }
+
+  .score-bar-wrap { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+  .score-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: var(--accent);
+    transition: width 0.5s ease;
+  }
+  .score-bar-fill.warn { background: var(--warn); }
+  .score-bar-fill.danger { background: var(--danger); }
+  .score-num { font-size: 13px; font-weight: 600; width: 36px; text-align: right; }
+
+  /* Summary table */
+  .summary-section { margin-bottom: 24px; }
+  .summary-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  th { background: var(--surface2); padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 10px 14px; font-size: 13px; border-top: 1px solid var(--border); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge.high { background: rgba(46,160,67,0.15); color: var(--accent); }
+  .badge.mid { background: rgba(210,153,34,0.15); color: var(--warn); }
+  .badge.low { background: rgba(248,81,73,0.15); color: var(--danger); }
+
+  /* Export */
+  .export-bar { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  .btn-export {
+    padding: 8px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-export:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .chevron { transition: transform 0.3s; display: inline-block; }
+  .chevron.open { transform: rotate(90deg); }
+
+  /* Count section */
+  .count-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .count-card-header {
+    padding: 14px 20px;
+    background: var(--surface2);
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+  }
+  .count-card-header:hover { background: rgba(255,255,255,0.03); }
+  .count-card-body { padding: 0 20px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s; }
+  .count-card-body.open { max-height: 1000px; padding: 16px 20px; }
+  .count-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .count-row:last-child { border-bottom: none; }
+  .count-label { flex: 1; font-size: 13px; color: var(--text); }
+  .count-bar-bg { width: 140px; height: 6px; background: var(--surface2); border-radius: 99px; overflow: hidden; flex-shrink: 0; }
+  .count-bar-fill { height: 100%; border-radius: 99px; background: var(--accent2); transition: width 0.5s ease; }
+  .count-num { font-size: 13px; font-weight: 600; color: var(--accent2); width: 36px; text-align: right; flex-shrink: 0; }
+  .count-pct { font-size: 11px; color: var(--text-muted); width: 44px; text-align: right; flex-shrink: 0; }
+  .rating-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .rating-row:last-child { border-bottom: none; }
+  .rating-star { font-size: 13px; width: 70px; flex-shrink: 0; color: var(--warn); }
+  .rating-bar-bg { flex: 1; height: 8px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+  .rating-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); transition: width 0.5s; }
+  .rating-n { font-size: 13px; font-weight: 600; width: 36px; text-align: right; flex-shrink: 0; }
+  .rating-pct { font-size: 11px; color: var(--text-muted); width: 44px; text-align: right; flex-shrink: 0; }
+
+  #error-msg {
+    display: none;
+    background: rgba(248,81,73,0.1);
+    border: 1px solid var(--danger);
+    border-radius: 8px;
+    padding: 14px 18px;
+    color: var(--danger);
+    margin-top: 16px;
+    font-size: 13px;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(56,139,253,0.12);
+    color: var(--accent2);
+    margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">📊</div>
+  <div>
+    <h1>ระบบประมวลผลแบบสอบถามความพึงพอใจนักศึกษา</h1>
+    <p>อัปโหลดไฟล์ Excel เพื่อประมวลผลคะแนนอัตโนมัติ</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Upload -->
+  <div id="upload-area">
+    <div class="upload-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls" />
+      <div class="upload-icon">📂</div>
+      <h2>ลากไฟล์ Excel มาวางที่นี่</h2>
+      <p>หรือคลิกเพื่อเลือกไฟล์ · รองรับ .xlsx และ .xls</p>
+      <button class="btn-primary" onclick="document.getElementById('fileInput').click(); event.stopPropagation();">เลือกไฟล์</button>
+    </div>
+    <div id="error-msg"></div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p style="color:var(--text-muted)">กำลังประมวลผล...</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+      <div>
+        <h2 style="font-size:18px; font-weight:700;">ผลการประมวลผล <span id="file-name-tag" class="tag"></span></h2>
+        <p style="color:var(--text-muted); font-size:13px; margin-top:4px;">คลิกที่หมวดหมู่เพื่อดูรายละเอียด</p>
+      </div>
+      <button class="btn-primary" onclick="resetAll()">⬆ อัปโหลดไฟล์ใหม่</button>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="stats-grid" id="stats-grid"></div>
+
+    <!-- Filter -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <label>หลักสูตร</label>
+        <select id="filter-program" onchange="applyFilters()"><option value="">ทั้งหมด</option></select>
+      </div>
+      <div class="filter-group">
+        <label>ชั้นปี</label>
+        <select id="filter-year" onchange="applyFilters()"><option value="">ทั้งหมด</option></select>
+      </div>
+      <div class="filter-group">
+        <label>เพศ</label>
+        <select id="filter-gender" onchange="applyFilters()"><option value="">ทั้งหมด</option></select>
+      </div>
+      <div class="filter-group">
+        <label>ระดับการศึกษา</label>
+        <select id="filter-edu" onchange="applyFilters()"><option value="">ทั้งหมด</option></select>
+      </div>
+      <button class="btn-reset" onclick="resetFilters()">รีเซ็ต</button>
+    </div>
+
+    <!-- Export -->
+    <div class="export-bar">
+      <button class="btn-export" onclick="exportCSV()">📥 Export CSV</button>
+      <button class="btn-export" onclick="exportExcel()">📊 Export Excel</button>
+      <button class="btn-export" onclick="printReport()">🖨️ พิมพ์รายงาน</button>
+    </div>
+
+    <!-- Summary Table -->
+    <div class="summary-section">
+      <h3>สรุปภาพรวมรายหมวด</h3>
+      <table id="summary-table">
+        <thead><tr><th>หมวดหมู่</th><th>จำนวนข้อ</th><th>ค่าเฉลี่ย</th><th>ระดับ</th></tr></thead>
+        <tbody id="summary-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Count Sections -->
+    <div id="count-sections"></div>
+
+    <!-- Detailed Sections -->
+    <div id="sections-container"></div>
+
+  </div>
+</div>
+
+<script>
+let rawData = [];
+let columns = [];
+let sectionDefs = [];
+
+// ===== Column detection =====
+function detectColumns(headers) {
+  const col = (keyword) => headers.findIndex(h => String(h||'').includes(keyword));
+  const cols = (keyword) => headers.map((h,i) => String(h||'').includes(keyword) ? i : -1).filter(i=>i>=0);
+
+  return {
+    program: col('สังกัดหลักสูตร'),
+    year: col('ชั้นปี'),
+    gender: col('เพศ'),
+    edu: col('ระดับการศึกษา'),
+    support: cols('บุคลากรสายสนับสนุนในการบริการส่วนงาน'),
+    curriculum: cols('บริหารจัดการหลักสูตร'),
+    complaint: headers.findIndex(h => String(h||'').includes('ร้องเรียน') && String(h||'').includes('พึงพอใจ')),
+  };
+}
+
+function getSectionName(header) {
+  const m1 = String(header).match(/\[(.+?)\]/);
+  return m1 ? m1[1] : String(header).substring(0, 60);
+}
+
+// ===== File reading =====
+function readFile(file) {
+  document.getElementById('upload-area').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      if (data.length < 2) throw new Error('ไม่พบข้อมูลในไฟล์');
+
+      columns = data[0];
+      rawData = data.slice(1).filter(row => row.some(c => c !== ''));
+
+      document.getElementById('file-name-tag').textContent = file.name;
+      processAndRender(rawData, columns);
+    } catch(err) {
+      showError('ไม่สามารถอ่านไฟล์ได้: ' + err.message);
+    }
+  };
+  reader.onerror = () => showError('เกิดข้อผิดพลาดในการอ่านไฟล์');
+  reader.readAsBinaryString(file);
+}
+
+// ===== Processing =====
+function avg(values) {
+  const nums = values.map(v => parseFloat(v)).filter(v => !isNaN(v) && v > 0);
+  if (!nums.length) return null;
+  return nums.reduce((a,b) => a+b, 0) / nums.length;
+}
+
+function scoreLevel(v) {
+  if (v === null) return '-';
+  if (v >= 4.5) return { label: 'มากที่สุด', cls: 'high' };
+  if (v >= 3.5) return { label: 'มาก', cls: 'high' };
+  if (v >= 2.5) return { label: 'ปานกลาง', cls: 'mid' };
+  if (v >= 1.5) return { label: 'น้อย', cls: 'mid' };
+  return { label: 'น้อยที่สุด', cls: 'low' };
+}
+
+function barClass(v) {
+  if (v >= 4.0) return '';
+  if (v >= 3.0) return 'warn';
+  return 'danger';
+}
+
+function avgClass(v) {
+  if (v >= 4.0) return '';
+  if (v >= 3.0) return 'warn';
+  return 'danger';
+}
+
+function processAndRender(rows, headers) {
+  const colIdx = detectColumns(headers);
+
+  // Build filter options
+  const programs = [...new Set(rows.map(r => r[colIdx.program]).filter(Boolean))].sort();
+  const years = [...new Set(rows.map(r => r[colIdx.year]).filter(Boolean))].sort();
+  const genders = [...new Set(rows.map(r => r[colIdx.gender]).filter(Boolean))].sort();
+  const edus = [...new Set(rows.map(r => r[colIdx.edu]).filter(Boolean))].sort();
+
+  populateSelect('filter-program', programs);
+  populateSelect('filter-year', years);
+  populateSelect('filter-gender', genders);
+  populateSelect('filter-edu', edus);
+
+  // Store for filtering
+  window._colIdx = colIdx;
+  window._headers = headers;
+
+  renderAll(rows, colIdx, headers);
+}
+
+function populateSelect(id, options) {
+  const sel = document.getElementById(id);
+  options.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o; opt.textContent = o;
+    sel.appendChild(opt);
+  });
+}
+
+function applyFilters() {
+  const prog = document.getElementById('filter-program').value;
+  const yr = document.getElementById('filter-year').value;
+  const gen = document.getElementById('filter-gender').value;
+  const edu = document.getElementById('filter-edu').value;
+  const colIdx = window._colIdx;
+
+  let filtered = rawData;
+  if (prog) filtered = filtered.filter(r => r[colIdx.program] === prog);
+  if (yr) filtered = filtered.filter(r => r[colIdx.year] === yr);
+  if (gen) filtered = filtered.filter(r => r[colIdx.gender] === gen);
+  if (edu) filtered = filtered.filter(r => r[colIdx.edu] === edu);
+
+  renderAll(filtered, colIdx, window._headers);
+}
+
+function resetFilters() {
+  ['filter-program','filter-year','filter-gender','filter-edu'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  applyFilters();
+}
+
+function renderAll(rows, colIdx, headers) {
+  const n = rows.length;
+
+  // --- Define sections ---
+  const supportCols = colIdx.support;
+  const currCols = colIdx.curriculum;
+
+  const sections = [
+    {
+      title: 'หมวดที่ 1 — ความพึงพอใจต่อบุคลากรสายสนับสนุน',
+      cols: supportCols,
+      items: supportCols.map(i => ({ label: getSectionName(headers[i]), col: i }))
+    },
+    {
+      title: 'หมวดที่ 2 — ความพึงพอใจต่อการบริหารจัดการหลักสูตรและสิ่งแวดล้อม',
+      cols: currCols,
+      items: currCols.map(i => ({ label: getSectionName(headers[i]), col: i }))
+    }
+  ];
+
+  // Add complaint if found
+  if (colIdx.complaint >= 0) {
+    sections.push({
+      title: 'หมวดที่ 3 — ความพึงพอใจการจัดการข้อร้องเรียน',
+      cols: [colIdx.complaint],
+      items: [{ label: getSectionName(headers[colIdx.complaint]), col: colIdx.complaint }]
+    });
+  }
+
+  window._sections = sections;
+  window._currentRows = rows;
+
+  // Compute averages
+  const allScoreCols = [...supportCols, ...currCols, ...(colIdx.complaint >= 0 ? [colIdx.complaint] : [])];
+  const allScores = rows.flatMap(r => allScoreCols.map(i => parseFloat(r[i])).filter(v => !isNaN(v) && v > 0));
+  const overallAvg = allScores.length ? (allScores.reduce((a,b)=>a+b,0)/allScores.length) : 0;
+
+  const sectionAvgs = sections.map(s => {
+    const vals = rows.flatMap(r => s.cols.map(i => parseFloat(r[i])).filter(v => !isNaN(v) && v > 0));
+    return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+  });
+
+  // --- Stat cards ---
+  const statsGrid = document.getElementById('stats-grid');
+  statsGrid.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">จำนวนผู้ตอบ</div>
+      <div class="stat-value blue">${n.toLocaleString()}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">คะแนนเฉลี่ยรวม (จาก 5)</div>
+      <div class="stat-value ${avgClass(overallAvg)}" style="color:${overallAvg>=4?'var(--accent)':overallAvg>=3?'var(--warn)':'var(--danger)'}">${overallAvg.toFixed(2)}</div>
+    </div>
+    ${sectionAvgs.map((a,i) => `
+    <div class="stat-card">
+      <div class="stat-label">หมวดที่ ${i+1} เฉลี่ย</div>
+      <div class="stat-value" style="font-size:22px;color:${a>=4?'var(--accent)':a>=3?'var(--warn)':'var(--danger)'}">${a.toFixed(2)}</div>
+    </div>`).join('')}
+  `;
+
+  // --- Summary table ---
+  const tbody = document.getElementById('summary-tbody');
+  tbody.innerHTML = sections.map((s, si) => {
+    const a = sectionAvgs[si];
+    const lv = scoreLevel(a);
+    return `<tr>
+      <td>${s.title}</td>
+      <td>${s.items.length}</td>
+      <td><strong>${a.toFixed(2)}</strong></td>
+      <td><span class="badge ${lv.cls}">${lv.label}</span></td>
+    </tr>`;
+  }).join('');
+
+  // --- Detailed sections ---
+  const container = document.getElementById('sections-container');
+  container.innerHTML = sections.map((s, si) => {
+    const sAvg = sectionAvgs[si];
+    const items = s.items.map(item => {
+      const vals = rows.map(r => parseFloat(r[item.col])).filter(v => !isNaN(v) && v > 0);
+      const a = vals.length ? vals.reduce((x,y)=>x+y,0)/vals.length : null;
+      return { ...item, avg: a, n: vals.length };
+    });
+
+    const itemsHtml = items.map(it => {
+      const pct = it.avg !== null ? ((it.avg/5)*100).toFixed(1) : 0;
+      const cls = it.avg !== null ? barClass(it.avg) : '';
+      return `<div class="item-row">
+        <div class="item-label"><strong>${it.label}</strong></div>
+        <div class="score-bar-wrap">
+          <div class="score-bar-bg"><div class="score-bar-fill ${cls}" style="width:${pct}%"></div></div>
+          <div class="score-num" style="color:${it.avg>=4?'var(--accent)':it.avg>=3?'var(--warn)':'var(--danger)'}">${it.avg !== null ? it.avg.toFixed(2) : '-'}</div>
+          <div style="font-size:11px;color:var(--text-muted);white-space:nowrap;min-width:52px;">${it.n} คน</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    const avgCls = sAvg >= 4 ? '' : sAvg >= 3 ? 'warn' : 'danger';
+
+    return `<div class="section-card">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">▶ <span class="chevron" id="chev-${si}">›</span> ${s.title}</span>
+        <span class="section-avg ${avgCls}">เฉลี่ย ${sAvg.toFixed(2)}</span>
+      </div>
+      <div class="section-body" id="body-${si}">
+        ${itemsHtml}
+      </div>
+    </div>`;
+  }).join('');
+
+  // --- Count sections ---
+  renderCountSections(rows, headers);
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('results').style.display = 'block';
+}
+
+function renderCountSections(rows, headers) {
+  const col = (kw) => headers.findIndex(h => String(h||'').includes(kw));
+
+  const countDefs = [
+    {
+      title: 'ข้อ 5 — แหล่งข้อมูลรายละเอียดหลักสูตร (เฉพาะชั้นปี 1)',
+      colIdx: col('หาข้อมูลรายละเอียดของหลักสูตร'),
+      type: 'category',
+      note: 'นับเฉพาะผู้ตอบที่มีข้อมูล'
+    },
+    {
+      title: 'ข้อ 6 — ช่องทางรับทราบการรับสมัคร (เฉพาะชั้นปี 1)',
+      colIdx: col('รับทราบช่องทางการรับสมัคร'),
+      type: 'category',
+      note: 'นับเฉพาะผู้ตอบที่มีข้อมูล'
+    },
+    {
+      title: 'ท่านเคยมีข้อร้องเรียนหรือไม่',
+      colIdx: col('ท่านเคยมีข้อร้องเรียนหรือไม่'),
+      type: 'category',
+      note: ''
+    },
+    {
+      title: 'ความพึงพอใจในการจัดการข้อร้องเรียน (เฉพาะผู้ที่เคยร้องเรียน)',
+      colIdx: col('ในกรณีที่มีการจัดการข้อร้องเรียน'),
+      type: 'rating',
+      note: 'นับเฉพาะผู้ที่มีข้อมูล'
+    }
+  ];
+
+  const container = document.getElementById('count-sections');
+
+  const titleEl = document.createElement('div');
+  titleEl.className = 'summary-section';
+  titleEl.innerHTML = '<h3>ข้อมูลเชิงจำนวนนับ</h3>';
+  container.innerHTML = '';
+  container.appendChild(titleEl);
+
+  countDefs.forEach((def, di) => {
+    if (def.colIdx < 0) return;
+
+    const vals = rows.map(r => String(r[def.colIdx]||'').trim()).filter(v => v && v !== 'undefined' && v !== '');
+    const total = vals.length;
+    if (total === 0) return;
+
+    // Count
+    const counts = {};
+    vals.forEach(v => { counts[v] = (counts[v]||0) + 1; });
+    const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+    const maxVal = sorted[0][1];
+
+    let bodyHtml = '';
+    if (def.type === 'rating') {
+      [5,4,3,2,1].forEach(star => {
+        const n = counts[String(star)] || counts[star] || 0;
+        const pct = total ? ((n/total)*100).toFixed(1) : 0;
+        const w = maxVal ? ((n/maxVal)*100).toFixed(1) : 0;
+        bodyHtml += `<div class="rating-row">
+          <div class="rating-star">${'★'.repeat(star)}${'☆'.repeat(5-star)} (${star})</div>
+          <div class="rating-bar-bg"><div class="rating-bar-fill" style="width:${w}%"></div></div>
+          <div class="rating-n">${n}</div>
+          <div class="rating-pct">${pct}%</div>
+        </div>`;
+      });
+    } else {
+      sorted.forEach(([label, n]) => {
+        const pct = ((n/total)*100).toFixed(1);
+        const w = ((n/maxVal)*100).toFixed(1);
+        bodyHtml += `<div class="count-row">
+          <div class="count-label">${label}</div>
+          <div class="count-bar-bg"><div class="count-bar-fill" style="width:${w}%"></div></div>
+          <div class="count-num">${n}</div>
+          <div class="count-pct">${pct}%</div>
+        </div>`;
+      });
+    }
+
+    const card = document.createElement('div');
+    card.className = 'count-card';
+    card.innerHTML = `
+      <div class="count-card-header" onclick="toggleCountCard(this)">
+        <span>› ${def.title}</span>
+        <span style="font-size:12px;font-weight:400;color:var(--text-muted)">ผู้ตอบ ${total} คน${def.note ? ' · ' + def.note : ''}</span>
+      </div>
+      <div class="count-card-body open">
+        ${bodyHtml}
+      </div>`;
+    container.appendChild(card);
+  });
+}
+
+function toggleCountCard(header) {
+  header.nextElementSibling.classList.toggle('open');
+}
+
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  const isOpen = body.classList.toggle('open');
+  const chevIdx = header.querySelector('.chevron');
+  if (chevIdx) chevIdx.classList.toggle('open', isOpen);
+}
+
+// ===== Export =====
+function getExportData() {
+  const sections = window._sections;
+  const rows = window._currentRows;
+  const data = [['หมวด', 'รายการ', 'จำนวนผู้ตอบ', 'ค่าเฉลี่ย', 'ระดับ']];
+
+  sections.forEach(s => {
+    s.items.forEach(item => {
+      const vals = rows.map(r => parseFloat(r[item.col])).filter(v => !isNaN(v) && v > 0);
+      const a = vals.length ? vals.reduce((x,y)=>x+y,0)/vals.length : null;
+      const lv = scoreLevel(a);
+      data.push([s.title, item.label, vals.length, a !== null ? a.toFixed(2) : '-', lv && lv.label ? lv.label : '-']);
+    });
+  });
+  return data;
+}
+
+function exportCSV() {
+  const data = getExportData();
+  const csv = data.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'survey_results.csv'; a.click();
+}
+
+function exportExcel() {
+  const data = getExportData();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ผลการประมวลผล');
+  XLSX.writeFile(wb, 'survey_results.xlsx');
+}
+
+function printReport() { window.print(); }
+
+// ===== Reset =====
+function resetAll() {
+  rawData = []; columns = [];
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('upload-area').style.display = 'block';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('error-msg').style.display = 'none';
+  ['filter-program','filter-year','filter-gender','filter-edu'].forEach(id => {
+    const sel = document.getElementById(id);
+    while (sel.options.length > 1) sel.remove(1);
+    sel.value = '';
+  });
+}
+
+function showError(msg) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('upload-area').style.display = 'block';
+  const e = document.getElementById('error-msg');
+  e.style.display = 'block';
+  e.textContent = '⚠️ ' + msg;
+}
+
+// ===== Events =====
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  if (e.target.files[0]) readFile(e.target.files[0]);
+});
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+});
+</script>
+</body>
+</html>
